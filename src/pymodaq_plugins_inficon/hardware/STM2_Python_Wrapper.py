@@ -7,13 +7,16 @@ class SerialBaseSMDP :
     def __init__(self):
         self.stm2_ports = []
 
-    def search_stm2_ports(self):
+    def search_stm2_ports(self) -> None:
+        """Searches for STM-2 in COM ports of the computer. Adds them in stm2_ports list attribute."""
+        """ Methode modifiée par Lucas après commit initial"""
         ports = serial.tools.list_ports.comports()
         for port in ports:
-            if port.manufacturer == 'Silicon Laboratories':
-                infos = InficonSTM2(port.device).get_infos()
-                if 'STM-2' in str(infos):
+            if port.manufacturer and "Silicon" in port.manufacturer:
+                try:
                     self.stm2_ports.append(port.device)
+                except:
+                    pass
         if not self.stm2_ports:
             raise ConnectionError("STM-2 not found, check connections and driver installation.")
 
@@ -79,11 +82,12 @@ class SerialBaseSMDP :
 
 class InficonSTM2:
 
-    def __init__(self, port = None):
+    def __init__(self, port=None):
         self.protocol = SerialBaseSMDP()
         if not port:
             self.protocol.search_stm2_ports()
             self.stm2_ports = self.protocol.stm2_ports
+            self.port = self.stm2_ports[0]  # Prend le premier port trouvé par défaut
         else:
             self.port = port
 

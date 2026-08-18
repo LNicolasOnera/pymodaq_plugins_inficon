@@ -1,34 +1,27 @@
 import numpy as np
-
 from pymodaq_utils.utils import ThreadCommand
 from pymodaq_data.data import DataToExport
 from pymodaq_gui.parameter import Parameter
-
 from pymodaq.control_modules.viewer_utility_classes import DAQ_Viewer_base, comon_parameters, main
 from pymodaq.utils.data import DataFromPlugins
-
 from pymodaq_plugins_inficon.hardware.STM2_Python_Wrapper import InficonSTM2
 
 class DAQ_0DViewer_Inficon_STM2(DAQ_Viewer_base):
-    """ Instrument plugin class for a OD viewer.
-
-    This object inherits all functionalities to communicate with PyMoDAQ’s DAQ_Viewer module through inheritance via
-    DAQ_Viewer_base. It makes a bridge between the DAQ_Viewer module and the Python wrapper of a particular instrument.
-
-    TODO Complete the docstring of your plugin with:
-        * The set of instruments that should be compatible with this instrument plugin.
-        * With which instrument it has actually been tested.
-        * The version of PyMoDAQ during the test.
-        * The version of the operating system.
-        * Installation instructions: what manufacturer’s drivers should be installed to make it run?
-
+    """ Module class for Inficon STM-2 instrument.
+        It needs the Inficon driver in order to communicate with PyMoDAQ.
+        It has been tested only with Inficon STM-2 rate/thickness monitor.
+    =======================================================================
     Attributes:
     -----------
     controller: object
-        The particular object that allow the communication with the hardware, in general a python wrapper around the
-         hardware library.
+        InficonSTM2 object from python wrapper STM2_Serial_Communication that uses SerialBaseSMDP methods to communicate
+        with the instrument according to the specific protocol (Sycon Multi Drop Protocol) described in its documentation.
+         
+    ========================================================================
+
     """
-    params = comon_parameters + [
+
+    params = comon_parameters+[
         {'title': 'Device serial number :', 'name': 'device_serial_number', 'type': 'list'},
         {'title': 'Device information :', 'name': 'device_info', 'type': 'str', 'value': '', 'readonly': True},
         {'title': 'Crystal status :', 'name': 'crystal_status', 'type': 'str', 'value': '', 'readonly': True},
@@ -42,14 +35,14 @@ class DAQ_0DViewer_Inficon_STM2(DAQ_Viewer_base):
         {'title': 'Film Z-ratio :', 'name': 'film_zratio', 'type': 'float', 'max': 9.999, 'min': 0.100},
         {'title': 'Film tooling (%) :', 'name': 'film_tooling', 'type': 'float', 'max': 999.9, 'min': 10.0},
         {'title': 'Samples number :', 'name': 'samples_number', 'type': 'int', 'max': 50, 'min': 1}
-    ]
+        ]
 
     def link_ports_and_sn(self):
         list_serial_numbers = []
         if self.stm2_ports:
             for port in self.stm2_ports:
                 serial_number = InficonSTM2(port).get_serial_number()
-                list_serial_numbers.append(serial_number + ' (' + port + ')')
+                list_serial_numbers.append(serial_number + ' (' + port +')')
         self.settings.child('device_serial_number').setLimits(list_serial_numbers)
 
     def ini_attributes(self):
@@ -60,9 +53,6 @@ class DAQ_0DViewer_Inficon_STM2(DAQ_Viewer_base):
         self.port_change = False
         self.link_ports_and_sn()
         self.emit_status(ThreadCommand('Update_Status', ['Detected STM-2 COM ports : ' + str(self.stm2_ports), 'log']))
-
-        # TODO declare here attributes you want/need to init with a default value
-        pass
 
     def commit_settings(self, param: Parameter):
         """Apply the consequences of a change of value in the detector settings
@@ -113,8 +103,8 @@ class DAQ_0DViewer_Inficon_STM2(DAQ_Viewer_base):
 
     def update_parameter_branch(self):
         infos = ('Model and firmware version : {}, Build type : {}, Firmware CRC : {}, Reset Status : {}'.format
-                 (self.controller.get_infos(), self.controller.get_build_type(), self.controller.get_firmware_crc(),
-                  self.controller.get_reset_status()))
+                (self.controller.get_infos(), self.controller.get_build_type(), self.controller.get_firmware_crc(),
+                self.controller.get_reset_status()))
         self.settings.child('device_info').setValue(infos)
         self.settings.child('crystal_status').setValue(self.controller.get_cristal_status())
         self.settings.child('crystal_life').setValue(self.controller.get_cristal_life())
@@ -140,14 +130,12 @@ class DAQ_0DViewer_Inficon_STM2(DAQ_Viewer_base):
         initialized: bool
             False if initialization failed otherwise True
         """
-        # if self.is_master:
-        self.controller = InficonSTM2()  # instantiate you driver with whatever arguments are needed
-        # port=self.controller.stm2_ports
+        self.ini_controller_init(slave_controller=controller)
         if (self.stm2_ports != []) & self.is_master:
-            # if not self.port_change:
-            self.port = self.stm2_ports[0]
-            self.controller = InficonSTM2(self.port) #open communication
-
+            if not self.port_change:
+                self.port = self.stm2_ports[0]
+            self.controller = InficonSTM2(self.port)
+        self.update_parameter_branch()
         self.dte_signal_temp.emit(DataToExport('STM-2 Data',
                                                data=[DataFromPlugins(name='STM-2 Frequency',
                                                                      data=[np.array([0, 5])],
@@ -189,33 +177,33 @@ class DAQ_0DViewer_Inficon_STM2(DAQ_Viewer_base):
             others optionals arguments
         """
         self.dte_signal.emit(DataToExport('STM-2 Data',
-                                          data=[DataFromPlugins(name='STM-2 Frequency',
-                                                                data=[np.array([self.controller.get_frequency()])],
-                                                                dim='Data0D',
-                                                                labels=['Frequency (Hz)']),
-                                                DataFromPlugins(name='STM-2 Thickness',
-                                                                data=[np.array([self.controller.get_thickness()])],
-                                                                dim='Data0D',
-                                                                labels=['Thickness (Å)']),
-                                                DataFromPlugins(name='STM-2 Film mass',
-                                                                data=[np.array([self.controller.get_film_mass()])],
-                                                                dim='Data0D',
-                                                                labels=['Film mass (µg/cm²)']),
-                                                DataFromPlugins(name='STM-2 Rate',
-                                                                data=[np.array([self.controller.get_rate()])],
-                                                                dim='Data0D',
-                                                                labels=['Rate (Å/s)']),
-                                                DataFromPlugins(name='STM-2 Mass accumulation rate',
-                                                                data=[np.array(
-                                                                    [self.controller.get_mass_accumulation_rate()])],
-                                                                dim='Data0D',
-                                                                labels=['Mass accumulation rate (μg/(*s/cm²))'])]))
-
+                                               data=[DataFromPlugins(name='STM-2 Frequency',
+                                                                     data=[np.array([self.controller.get_frequency()])],
+                                                                     dim='Data0D',
+                                                                     labels=['Frequency (Hz)']),
+                                                     DataFromPlugins(name='STM-2 Thickness',
+                                                                     data=[np.array([self.controller.get_thickness()])],
+                                                                     dim='Data0D',
+                                                                     labels=['Thickness (Å)']),
+                                                     DataFromPlugins(name='STM-2 Film mass',
+                                                                     data=[np.array([self.controller.get_film_mass()])],
+                                                                     dim='Data0D',
+                                                                     labels=['Film mass (µg/cm²)']),
+                                                     DataFromPlugins(name='STM-2 Rate',
+                                                                     data=[np.array([self.controller.get_rate()])],
+                                                                     dim='Data0D',
+                                                                     labels=['Rate (Å/s)']),
+                                                     DataFromPlugins(name='STM-2 Mass accumulation rate',
+                                                                     data=[np.array([self.controller.get_mass_accumulation_rate()])],
+                                                                     dim='Data0D',
+                                                                     labels=['Mass accumulation rate (μg/(*s/cm²))'])]))
 
     def stop(self):
         """Stop the current grab hardware wise if necessary"""
         self.emit_status(ThreadCommand('Update_Status', ['Stopped']))
+        ##############################
         return ''
+
 
 if __name__ == '__main__':
     main(__file__)
