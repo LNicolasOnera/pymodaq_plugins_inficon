@@ -144,8 +144,8 @@ class DAQ_0DViewer_Inficon_STM2(DAQ_Viewer_base):
         self.controller = InficonSTM2()  # instantiate you driver with whatever arguments are needed
         # port=self.controller.stm2_ports
         if (self.stm2_ports != []) & self.is_master:
-            if not self.port_change:
-                self.port = self.stm2_ports[0]
+            # if not self.port_change:
+            self.port = self.stm2_ports[0]
             self.controller = InficonSTM2(self.port) #open communication
 
         self.dte_signal_temp.emit(DataToExport('STM-2 Data',
@@ -157,19 +157,18 @@ class DAQ_0DViewer_Inficon_STM2(DAQ_Viewer_base):
                                                                      data=[np.array([0, 5])],
                                                                      dim='Data0D',
                                                                      labels=['Thickness (Å)']),
-                                                     # DataFromPlugins(name='STM-2 Film mass',
-                                                     #                 data=[np.array([0, 5])],
-                                                     #                 dim='Data0D',
-                                                     #                 labels=['Film mass (µg/cm²)']),
+                                                     DataFromPlugins(name='STM-2 Film mass',
+                                                                     data=[np.array([0, 5])],
+                                                                     dim='Data0D',
+                                                                     labels=['Film mass (µg/cm²)']),
                                                      DataFromPlugins(name='STM-2 Rate',
                                                                      data=[np.array([0, 5])],
                                                                      dim='Data0D',
                                                                      labels=['Rate (Å/s)']),
-                                                     # DataFromPlugins(name='STM-2 Mass accumulation rate',
-                                                     #                 data=[np.array([0, 5])],
-                                                     #                 dim='Data0D',
-                                                     #                 labels=['Mass accumulation rate (μg/(*s/cm²))'])
-                                                                     ]))
+                                                     DataFromPlugins(name='STM-2 Mass accumulation rate',
+                                                                     data=[np.array([0, 5])],
+                                                                     dim='Data0D',
+                                                                     labels=['Mass accumulation rate (μg/(*s/cm²))'])]))
         info = "Default values for selected STM-2 should be printed and graphs should appear."
         initialized = bool(self.controller)
         return info, initialized
@@ -198,20 +197,19 @@ class DAQ_0DViewer_Inficon_STM2(DAQ_Viewer_base):
                                                                 data=[np.array([self.controller.get_thickness()])],
                                                                 dim='Data0D',
                                                                 labels=['Thickness (Å)']),
-                                                # DataFromPlugins(name='STM-2 Film mass',
-                                                #                 data=[np.array([self.controller.get_film_mass()])],
-                                                #                 dim='Data0D',
-                                                #                 labels=['Film mass (µg/cm²)']),
+                                                DataFromPlugins(name='STM-2 Film mass',
+                                                                data=[np.array([self.controller.get_film_mass()])],
+                                                                dim='Data0D',
+                                                                labels=['Film mass (µg/cm²)']),
                                                 DataFromPlugins(name='STM-2 Rate',
                                                                 data=[np.array([self.controller.get_rate()])],
                                                                 dim='Data0D',
                                                                 labels=['Rate (Å/s)']),
-                                                # DataFromPlugins(name='STM-2 Mass accumulation rate',
-                                                #                 data=[np.array(
-                                                #                     [self.controller.get_mass_accumulation_rate()])],
-                                                #                 dim='Data0D',
-                                                #                 labels=['Mass accumulation rate (μg/(*s/cm²))'])
-                                                ]))
+                                                DataFromPlugins(name='STM-2 Mass accumulation rate',
+                                                                data=[np.array(
+                                                                    [self.controller.get_mass_accumulation_rate()])],
+                                                                dim='Data0D',
+                                                                labels=['Mass accumulation rate (μg/(*s/cm²))'])]))
 
 
     def stop(self):
