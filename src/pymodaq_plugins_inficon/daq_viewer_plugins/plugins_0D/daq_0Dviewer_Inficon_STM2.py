@@ -141,10 +141,13 @@ class DAQ_0DViewer_Inficon_STM2(DAQ_Viewer_base):
             False if initialization failed otherwise True
         """
         # if self.is_master:
-        self.controller = InficonSTM2()  # instantiate you driver with whatever arguments are needed
-        # port=self.controller.stm2_ports
-        if (self.stm2_ports != []) & self.is_master:
-            if not self.port_change:
+        self.controller = InficonSTM2()
+
+        if self.stm2_ports and self.is_master:
+            selected = self.settings.child('device_serial_number').value()
+            if selected:
+                self.port = selected.rsplit('(', 1)[-1].rstrip(')')
+            elif not self.port:
                 self.port = self.stm2_ports[0]
             self.controller = InficonSTM2(self.port) #open communication
 
