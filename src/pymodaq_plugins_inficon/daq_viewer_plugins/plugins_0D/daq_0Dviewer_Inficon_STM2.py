@@ -32,16 +32,11 @@ class DAQ_0DViewer_Inficon_STM2(DAQ_Viewer_base):
         {'title': 'Device serial number :', 'name': 'device_serial_number', 'type': 'list'},
         {'title': 'Device information :', 'name': 'device_info', 'type': 'str', 'value': '', 'readonly': True},
         {'title': 'Crystal status :', 'name': 'crystal_status', 'type': 'str', 'value': '', 'readonly': True},
-        {'title': 'Crystal life (%) :', 'name': 'crystal_life', 'type': 'str', 'value': '', 'readonly': True},
-        {'title': 'Timer (H:MM:SS) :', 'name': 'timer', 'type': 'str', 'value': '', 'readonly': True},
-        {'title': 'Set default parameters :', 'name': 'set_default_parameters', 'type': 'bool'},
-        {'title': 'Zeroes thickness :', 'name': 'set_thickness_zeroes', 'type': 'bool'},
-        {'title': 'Zeroes timer :', 'name': 'set_timer_zeroes', 'type': 'bool'},
+        {'title': 'Zeroes thickness :', 'name': 'set_timer_thickness_zeroes', 'type': 'bool_push'},
         {'title': 'Film name :', 'name': 'film_name', 'type': 'str'},
         {'title': 'Film density :', 'name': 'film_density', 'type': 'float', 'max': 99.99, 'min': 0.40},
         {'title': 'Film Z-ratio :', 'name': 'film_zratio', 'type': 'float', 'max': 9.999, 'min': 0.100},
-        {'title': 'Film tooling (%) :', 'name': 'film_tooling', 'type': 'float', 'max': 999.9, 'min': 10.0},
-        {'title': 'Samples number :', 'name': 'samples_number', 'type': 'int', 'max': 50, 'min': 1}
+        {'title': 'Samples number :', 'name': 'samples_number', 'type': 'int', 'max': 50, 'min': 1, 'value': 5}
     ]
 
     def link_ports_and_sn(self):
@@ -72,13 +67,10 @@ class DAQ_0DViewer_Inficon_STM2(DAQ_Viewer_base):
         param: Parameter
             Device serial number : list of detected STM-2 monitors, can be selected during initialization
             (changes may occur between units, see red light on it).
-            Set default parameters : sets the unit to its constructor default values.
             Zeroes thickness : as in title.
-            Zeroes timer : as in title.
             Film name : sets unit film name (8 characters max), nice to remember who is who.
             Film density : sets film density on the unit for calculated values.
             Film Z-ratio : sets film Z-ratio on the unit for calculated values.
-            Film tooling : sets film tooling on the unit for calculated values.
             Samples number : sets sample number on the unit for calculated values.
         """
         try:
@@ -91,20 +83,14 @@ class DAQ_0DViewer_Inficon_STM2(DAQ_Viewer_base):
                 else:
                     self.port_change = False
                 self.emit_status(ThreadCommand('Update_Status', ["Selected port is now : " + str(self.port), 'log']))
-            elif param.name() == 'set_default_parameters':
-                self.controller.set_default_parameters()
-            elif param.name() == 'set_thickness_zeroes':
-                self.controller.set_thickness_zeroes()
-            elif param.name() == 'set_timer_zeroes':
-                self.controller.set_timer_zeroes()
+            elif param.name() == 'set_timer_thickness_zeroes':
+                self.controller.set_timer_thickness_zeroes()
             elif param.name() == 'film_name':
                 self.controller.set_film_name(param.value())
             elif param.name() == 'film_density':
                 self.controller.set_film_density(param.value())
             elif param.name() == 'film_zratio':
                 self.controller.set_film_zratio(param.value())
-            elif param.name() == 'film_tooling':
-                self.controller.set_film_tooling(param.value())
             elif param.name() == 'samples_number':
                 self.controller.set_samples_number(param.value())
             self.update_parameter_branch()
@@ -117,12 +103,9 @@ class DAQ_0DViewer_Inficon_STM2(DAQ_Viewer_base):
                   self.controller.get_reset_status()))
         self.settings.child('device_info').setValue(infos)
         self.settings.child('crystal_status').setValue(self.controller.get_cristal_status())
-        self.settings.child('crystal_life').setValue(self.controller.get_cristal_life())
-        self.settings.child('timer').setValue(self.controller.get_timer())
         self.settings.child('film_name').setValue(self.controller.get_film_name())
         self.settings.child('film_density').setValue(self.controller.get_film_density())
         self.settings.child('film_zratio').setValue(self.controller.get_film_zratio())
-        self.settings.child('film_tooling').setValue(self.controller.get_film_tooling())
         self.settings.child('samples_number').setValue(self.controller.get_samples_number())
 
     def ini_detector(self, controller=None):
@@ -150,6 +133,8 @@ class DAQ_0DViewer_Inficon_STM2(DAQ_Viewer_base):
             elif not self.port:
                 self.port = self.stm2_ports[0]
             self.controller = InficonSTM2(self.port) #open communication
+
+        self.controller.set_timer_thickness_zeroes() #setting initial thickness to 0
 
         self.dte_signal_temp.emit(DataToExport('STM-2 Data',
                                                data=[DataFromPlugins(name='STM-2 Frequency',

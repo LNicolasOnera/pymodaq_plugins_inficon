@@ -62,10 +62,8 @@ class SerialBaseSMDP :
     def resp_status(cmd_bytes, resp_status_bytes):
         error_code = resp_status_bytes - cmd_bytes
         if error_code > 7:
-#            print("STM-2 has been reset since last power flag acknowledgement.")
             error_code += -8
         elif error_code == 1:
-#            print("Command understood and executed.")
             pass
         elif error_code == 2:
             raise ConnectionError(f"Illegal command (command code not valid) : {cmd_bytes}.")
