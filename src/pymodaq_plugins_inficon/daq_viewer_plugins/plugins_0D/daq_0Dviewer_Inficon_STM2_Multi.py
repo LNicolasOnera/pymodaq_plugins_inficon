@@ -200,12 +200,11 @@ class DAQ_0DViewer_Inficon_STM2_Multi(DAQ_Viewer_base):
         self.sync_controllers()
 
         channel = self.settings.child('channel').value()
-        dummy_data = [
-            DataFromPlugins(name=f'{name} {channel}', data=[np.array([0])], dim='Data0D',
-                             labels=[f'{name} {channel}'])
-            for name in self.controllers
-        ]
-        self.dte_signal_temp.emit(DataToExport('STM-2 Group Data', data=dummy_data))
+        labels = [f'{name} {channel}' for name in self.controllers]
+        data_tot = [np.array([0]) for _ in self.controllers]
+        self.dte_signal_temp.emit(DataToExport('STM-2 Group Data',
+                                               data=[DataFromPlugins(name='STM-2 Group Data', data=data_tot,
+                                                                     dim='Data0D', labels=labels)]))
 
         initialized = len(self.controllers) > 0
         info = f"{len(self.controllers)} STM-2 connecté(s) : {', '.join(self.controllers.keys())}"
@@ -222,19 +221,23 @@ class DAQ_0DViewer_Inficon_STM2_Multi(DAQ_Viewer_base):
         channel = self.settings.child('channel').value()
         getter_name, unit = self._channel_getters[channel]
 
-        data_list = []
+        data_tot = []
+        labels = []
         for name, ctrl in self.controllers.items():
             try:
                 value = getattr(ctrl, getter_name)()
             except Exception as e:
                 self.emit_status(ThreadCommand('Update_Status', [f'Erreur lecture {name} : {e}', 'log']))
                 value = np.nan
-            data_list.append(DataFromPlugins(name=f'{name} {channel}',
-                                              data=[np.array([value])],
-                                              dim='Data0D',
-                                              labels=[f'{name} {channel} ({unit})']))
+            data_tot.append(np.array([value]))
+            labels.append(f'{name} {channel} ({unit})')
 
-        self.dte_signal.emit(DataToExport('STM-2 Group Data', data=data_list))
+        if not data_tot:
+            return
+
+        self.dte_signal.emit(DataToExport('STM-2 Group Data',
+                                          data=[DataFromPlugins(name='STM-2 Group Data', data=data_tot,
+                                                                dim='Data0D', labels=labels)]))
 
     def stop(self):
         """Stop the current grab hardware wise if necessary"""
