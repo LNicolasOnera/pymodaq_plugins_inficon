@@ -3,222 +3,244 @@ import numpy as np
 from pymodaq_utils.utils import ThreadCommand
 from pymodaq_data.data import DataToExport
 from pymodaq_gui.parameter import Parameter
+from pymodaq_gui.parameter.pymodaq_ptypes import GroupParameter, registerParameterType
 
 from pymodaq.control_modules.viewer_utility_classes import DAQ_Viewer_base, comon_parameters, main
 from pymodaq.utils.data import DataFromPlugins
-from pymodaq_gui.parameter.pymodaq_ptypes import GroupParameter, registerParameterType
-from pyqtgraph.parametertree.parameterTypes.basetypes import GroupParameter
 
 from pymodaq_plugins_inficon.hardware.STM2_Python_Wrapper import InficonSTM2
 
+
+qcm_params = [
+    {'title': 'Device serial number :', 'name': 'device_serial_number', 'type': 'list'},
+    {'title': 'Crystal status :', 'name': 'crystal_status', 'type': 'str', 'value': '', 'readonly': True},
+]
+
+
+class STM2ScalableGroup(GroupParameter):
+    """Group parameter allowing the user to add/remove QCM_XX entries at runtime, each holding
+    its own copy of qcm_params (device_serial_number, crystal_status)."""
+
+    def __init__(self, **opts):
+        opts['type'] = 'group'
+        opts['addText'] = 'Add QCM'
+        super().__init__(**opts)
+
+    def addNew(self):
+        indexes = [int(child.name().split('_')[1]) for child in self.children()
+                   if child.name().startswith('qcm_')]
+        new_index = max(indexes) + 1 if indexes else max(len(self.children()), 1)
+        children = [{**p} for p in qcm_params]  # fresh copy, don't share dicts between QCMs
+        self.addChild({
+            'title': f'QCM {new_index}',
+            'name': f'qcm_{new_index}',
+            'type': 'bool',
+            'value': True,
+            'removable': True,
+            'renamable': False,
+            'children': children,
+        })
+
+
+registerParameterType('groupstm2', STM2ScalableGroup, override=True)
+
+
 class DAQ_0DViewer_Inficon_STM2_Multi(DAQ_Viewer_base):
-    """ Instrument plugin class for a OD viewer.
+    """ Instrument plugin class for a OD viewer managing a variable number of Inficon STM-2 units.
 
-    This object inherits all functionalities to communicate with PyMoDAQ’s DAQ_Viewer module through inheritance via
-    DAQ_Viewer_base. It makes a bridge between the DAQ_Viewer module and the Python wrapper of a particular instrument.
+    Units are added/removed at runtime from the 'activated_stm2' group parameter (à la Mock
+    plugin). Film settings (name/density/zratio/samples) and the zero-thickness command are
+    broadcast to every currently connected unit; each unit keeps its own serial number selection
+    and crystal status readout. The chosen channel (frequency/thickness/rate) is plotted for every
+    connected unit on the same 0D graph.
 
-    TODO Complete the docstring of your plugin with:
-        * The set of instruments that should be compatible with this instrument plugin.
-        * With which instrument it has actually been tested.
-        * The version of PyMoDAQ during the test.
-        * The version of the operating system.
-        * Installation instructions: what manufacturer’s drivers should be installed to make it run?
-
-    Attributes:
+    Attributes
     -----------
-    controller: object
-        The particular object that allow the communication with the hardware, in general a python wrapper around the
-         hardware library.
+    controllers: dict[str, InficonSTM2]
+        Maps a QCM group child name ('qcm_1', 'qcm_2', ...) to its open InficonSTM2 connection.
     """
 
-    qcm_params =  [
-        {'title': 'Device serial number :', 'name': 'device_serial_number', 'type': 'list'},
-        {'title': 'Crystal status :', 'name': 'crystal_status', 'type': 'str', 'value': '', 'readonly': True},
-    ]
-
     params = comon_parameters + [
-        {'title': 'Number of QCM', 'name': 'qcm_number', 'type': 'int', 'value': 2},
+        {'title': 'Canal tracé :', 'name': 'channel', 'type': 'list',
+         'limits': ['frequency', 'thickness', 'rate'], 'value': 'frequency'},
+        {'title': 'Actualiser les ports :', 'name': 'refresh_ports', 'type': 'bool_push'},
         {'title': 'Zeroes thickness :', 'name': 'set_timer_thickness_zeroes', 'type': 'bool_push'},
         {'title': 'Film name :', 'name': 'film_name', 'type': 'str'},
         {'title': 'Film density :', 'name': 'film_density', 'type': 'float', 'max': 99.99, 'min': 0.40},
         {'title': 'Film Z-ratio :', 'name': 'film_zratio', 'type': 'float', 'max': 9.999, 'min': 0.100},
         {'title': 'Samples number :', 'name': 'samples_number', 'type': 'int', 'max': 50, 'min': 1, 'value': 5},
-        {'title': 'Activated STM-2', 'name': 'activated_stm2', 'type':'groupmock', 'children':[
-            {'title': 'QCM 1', 'name': 'qcm_1', 'type': 'bool', 'value': True,'removable': True, 'renamable': False,
-             'children': qcm_params},
-            {'title': 'QCM 2', 'name': 'qcm_2', 'type': 'bool', 'value': True,'removable': True, 'renamable': False,
-             'children': qcm_params},
+        {'title': 'Activated STM-2', 'name': 'activated_stm2', 'type': 'groupstm2', 'children': [
+            {'title': 'QCM 1', 'name': 'qcm_1', 'type': 'bool', 'value': True,
+             'removable': True, 'renamable': False,
+             'children': [{**p} for p in qcm_params]},
+            {'title': 'QCM 2', 'name': 'qcm_2', 'type': 'bool', 'value': True,
+             'removable': True, 'renamable': False,
+             'children': [{**p} for p in qcm_params]},
         ]},
-
     ]
 
-    def link_ports_and_sn(self):
-        list_serial_numbers = []
-        if self.stm2_ports:
-            for port in self.stm2_ports:
-                serial_number = InficonSTM2(port).get_serial_number()
-                list_serial_numbers.append(serial_number + ' (' + port + ')')
-        self.settings.child('device_serial_number').setLimits(list_serial_numbers)
+    _channel_getters = {
+        'frequency': ('get_frequency', 'Hz'),
+        'thickness': ('get_thickness', 'Å'),
+        'rate': ('get_rate', 'Å/s'),
+    }
+
+    @staticmethod
+    def _port_from_label(label: str) -> str:
+        return label.rsplit('(', 1)[-1].rstrip(')') if label else ''
 
     def ini_attributes(self):
-        self.controller: InficonSTM2 = None
-        self.controller = None
+        self.controllers: dict = {}      # nom du QCM -> InficonSTM2 connecté
+        self._ports_in_use: dict = {}    # nom du QCM -> port actuellement connecté
         self.stm2_ports = InficonSTM2().stm2_ports
-        self.port = None
-        self.port_change = False
-        self.link_ports_and_sn()
-        self.emit_status(ThreadCommand('Update_Status', ['Detected STM-2 COM ports : ' + str(self.stm2_ports), 'log']))
+        self.refresh_available_ports()
 
-        # TODO declare here attributes you want/need to init with a default value
-        pass
+    def refresh_available_ports(self):
+        """Scan the COM ports and update every QCM's device_serial_number choices, keeping the
+        currently selected value if it is still valid."""
+        self.stm2_ports = InficonSTM2().stm2_ports
+        labels = []
+        for port in self.stm2_ports:
+            try:
+                sn = InficonSTM2(port).get_serial_number()
+                labels.append(f'{sn} ({port})')
+            except Exception as e:
+                self.emit_status(ThreadCommand('Update_Status', [f"Port {port} injoignable : {e}", 'log']))
+
+        for qcm in self.settings.child('activated_stm2').children():
+            sn_child = qcm.child('device_serial_number')
+            current = sn_child.value()
+            sn_child.setLimits(labels)
+            if current in labels:
+                sn_child.setValue(current)
+
+        self.emit_status(ThreadCommand('Update_Status', [f'STM-2 détectés : {labels}', 'log']))
+
+    def sync_controllers(self):
+        """Rebuild self.controllers from the current parameter tree: connect any activated QCM
+        with a chosen serial number that isn't connected yet (or whose port changed), and
+        disconnect any QCM that got deactivated, removed, or emptied of its port choice."""
+        active = {}
+        for qcm in self.settings.child('activated_stm2').children():
+            name = qcm.name()
+            if not qcm.value():  # case décochée
+                continue
+            label = qcm.child('device_serial_number').value()
+            port = self._port_from_label(label)
+            if not port:
+                continue
+            active[name] = port
+
+        # déconnecter ce qui n'est plus actif
+        for name in list(self.controllers.keys()):
+            if name not in active:
+                self.controllers.pop(name, None)
+                self._ports_in_use.pop(name, None)
+
+        # connecter/reconnecter ce qui a changé
+        for name, port in active.items():
+            if self._ports_in_use.get(name) != port:
+                try:
+                    ctrl = InficonSTM2(port)
+                    ctrl.set_timer_thickness_zeroes()
+                    self.controllers[name] = ctrl
+                    self._ports_in_use[name] = port
+                    self.settings.child('activated_stm2', name, 'crystal_status').setValue(
+                        ctrl.get_cristal_status())
+                except Exception as e:
+                    self.emit_status(ThreadCommand('Update_Status', [f'Connexion {name} impossible : {e}', 'log']))
 
     def commit_settings(self, param: Parameter):
-        """Apply the consequences of a change of value in the detector settings
+        """Apply the consequences of a change of value in the detector settings.
+
+        Almost every change (activation toggle, serial number choice, QCM added/removed) is
+        handled uniformly by resynchronising self.controllers with the parameter tree via
+        sync_controllers(), exactly like set_Mock_data() rebuilds the Mock plugin's data from its
+        tree on every commit. Only the genuinely "broadcast" commands (film settings, zeroing,
+        port refresh) need an explicit branch.
 
         Parameters
         ----------
         param: Parameter
-            Device serial number : list of detected STM-2 monitors, can be selected during initialization
-            (changes may occur between units, see red light on it).
-            Zeroes thickness : as in title.
-            Film name : sets unit film name (8 characters max), nice to remember who is who.
-            Film density : sets film density on the unit for calculated values.
-            Film Z-ratio : sets film Z-ratio on the unit for calculated values.
-            Samples number : sets sample number on the unit for calculated values.
+            channel : canal tracé au prochain grab (frequency/thickness/rate), pas d'action ici.
+            refresh_ports : relance la détection des ports/numéros de série disponibles.
+            set_timer_thickness_zeroes : remet l'épaisseur à zéro sur tous les STM-2 connectés.
+            film_name / film_density / film_zratio / samples_number : diffusés à tous les STM-2
+                connectés.
+            device_serial_number (sous 'activated_stm2') ou activation d'un QCM : gérés par
+                sync_controllers().
         """
         try:
-            if param.name() == 'device_serial_number':
-                old_port = self.port
-                self.port = param.value()[-5:-1]
-                if old_port != self.port:
-                    self.port_change = True
-                    self.controller = InficonSTM2(self.port)
-                else:
-                    self.port_change = False
-                self.emit_status(ThreadCommand('Update_Status', ["Selected port is now : " + str(self.port), 'log']))
-            elif param.name() == 'set_timer_thickness_zeroes':
-                self.controller.set_timer_thickness_zeroes()
+            if param.name() == 'refresh_ports':
+                self.refresh_available_ports()
+
+            self.sync_controllers()
+
+            if param.name() == 'set_timer_thickness_zeroes':
+                for ctrl in self.controllers.values():
+                    ctrl.set_timer_thickness_zeroes()
             elif param.name() == 'film_name':
-                self.controller.set_film_name(param.value())
+                for ctrl in self.controllers.values():
+                    ctrl.set_film_name(param.value())
             elif param.name() == 'film_density':
-                self.controller.set_film_density(param.value())
+                for ctrl in self.controllers.values():
+                    ctrl.set_film_density(param.value())
             elif param.name() == 'film_zratio':
-                self.controller.set_film_zratio(param.value())
+                for ctrl in self.controllers.values():
+                    ctrl.set_film_zratio(param.value())
             elif param.name() == 'samples_number':
-                self.controller.set_samples_number(param.value())
-            self.update_parameter_branch()
+                for ctrl in self.controllers.values():
+                    ctrl.set_samples_number(param.value())
         except Exception as e:
             self.emit_status(ThreadCommand('Update_Status', [str(e), 'log']))
 
-    def update_parameter_branch(self):
-        infos = ('Model and firmware version : {}, Build type : {}, Firmware CRC : {}, Reset Status : {}'.format
-                 (self.controller.get_infos(), self.controller.get_build_type(), self.controller.get_firmware_crc(),
-                  self.controller.get_reset_status()))
-        self.settings.child('device_info').setValue(infos)
-        self.settings.child('crystal_status').setValue(self.controller.get_cristal_status())
-        self.settings.child('film_name').setValue(self.controller.get_film_name())
-        self.settings.child('film_density').setValue(self.controller.get_film_density())
-        self.settings.child('film_zratio').setValue(self.controller.get_film_zratio())
-        self.settings.child('samples_number').setValue(self.controller.get_samples_number())
-
     def ini_detector(self, controller=None):
-        """Detector communication initialization
+        """Detector communication initialization: connects every currently activated QCM."""
+        self.refresh_available_ports()
+        self.sync_controllers()
 
-        Parameters
-        ----------
-        controller: (object)
-            custom object of a PyMoDAQ plugin (Slave case). None if only one actuator/detector by controller
-            (Master case)
+        channel = self.settings.child('channel').value()
+        dummy_data = [
+            DataFromPlugins(name=f'{name} {channel}', data=[np.array([0])], dim='Data0D',
+                             labels=[f'{name} {channel}'])
+            for name in self.controllers
+        ]
+        self.dte_signal_temp.emit(DataToExport('STM-2 Group Data', data=dummy_data))
 
-        Returns
-        -------
-        info: str
-        initialized: bool
-            False if initialization failed otherwise True
-        """
-        # if self.is_master:
-        self.controller = InficonSTM2()
-
-        if self.stm2_ports and self.is_master:
-            selected = self.settings.child('device_serial_number').value()
-            if selected:
-                self.port = selected.rsplit('(', 1)[-1].rstrip(')')
-            elif not self.port:
-                self.port = self.stm2_ports[0]
-            self.controller = InficonSTM2(self.port) #open communication
-
-        self.controller.set_timer_thickness_zeroes() #setting initial thickness to 0
-
-        self.dte_signal_temp.emit(DataToExport('STM-2 Data',
-                                               data=[DataFromPlugins(name='STM-2 Frequency',
-                                                                     data=[np.array([0, 5])],
-                                                                     dim='Data0D',
-                                                                     labels=['Frequency (Hz)']),
-                                                     DataFromPlugins(name='STM-2 Thickness',
-                                                                     data=[np.array([0, 5])],
-                                                                     dim='Data0D',
-                                                                     labels=['Thickness (Å)']),
-                                                     # DataFromPlugins(name='STM-2 Film mass',
-                                                     #                 data=[np.array([0, 5])],
-                                                     #                 dim='Data0D',
-                                                     #                 labels=['Film mass (µg/cm²)']),
-                                                     DataFromPlugins(name='STM-2 Rate',
-                                                                     data=[np.array([0, 5])],
-                                                                     dim='Data0D',
-                                                                     labels=['Rate (Å/s)']),
-                                                     # DataFromPlugins(name='STM-2 Mass accumulation rate',
-                                                     #                 data=[np.array([0, 5])],
-                                                     #                 dim='Data0D',
-                                                     #                 labels=['Mass accumulation rate (μg/(*s/cm²))'])
-                                                                     ]))
-        info = "Default values for selected STM-2 should be printed and graphs should appear."
-        initialized = bool(self.controller)
+        initialized = len(self.controllers) > 0
+        info = f"{len(self.controllers)} STM-2 connecté(s) : {', '.join(self.controllers.keys())}"
         return info, initialized
 
     def close(self):
-        """Terminate the communication protocol"""
-        self.controller = None
+        """Terminate the communication protocol with every connected STM-2."""
+        self.controllers.clear()
+        self._ports_in_use.clear()
 
     def grab_data(self, Naverage=1, **kwargs):
-        """Start a grab from the detector
+        """Grab the chosen channel from every connected STM-2 and emit them together so they are
+        plotted as separate curves on the same 0D graph."""
+        channel = self.settings.child('channel').value()
+        getter_name, unit = self._channel_getters[channel]
 
-        Parameters
-        ----------
-        Naverage: int
-            Number of hardware averaging (if hardware averaging is possible, self.hardware_averaging should be set to
-            True in class preamble and you should code this implementation)
-        kwargs: dict
-            others optionals arguments
-        """
-        self.dte_signal.emit(DataToExport('STM-2 Data',
-                                          data=[DataFromPlugins(name='STM-2 Frequency',
-                                                                data=[np.array([self.controller.get_frequency()])],
-                                                                dim='Data0D',
-                                                                labels=['Frequency (Hz)']),
-                                                DataFromPlugins(name='STM-2 Thickness',
-                                                                data=[np.array([self.controller.get_thickness()])],
-                                                                dim='Data0D',
-                                                                labels=['Thickness (Å)']),
-                                                # DataFromPlugins(name='STM-2 Film mass',
-                                                #                 data=[np.array([self.controller.get_film_mass()])],
-                                                #                 dim='Data0D',
-                                                #                 labels=['Film mass (µg/cm²)']),
-                                                DataFromPlugins(name='STM-2 Rate',
-                                                                data=[np.array([self.controller.get_rate()])],
-                                                                dim='Data0D',
-                                                                labels=['Rate (Å/s)']),
-                                                # DataFromPlugins(name='STM-2 Mass accumulation rate',
-                                                #                 data=[np.array(
-                                                #                     [self.controller.get_mass_accumulation_rate()])],
-                                                #                 dim='Data0D',
-                                                #                 labels=['Mass accumulation rate (μg/(*s/cm²))'])
-                                                ]))
+        data_list = []
+        for name, ctrl in self.controllers.items():
+            try:
+                value = getattr(ctrl, getter_name)()
+            except Exception as e:
+                self.emit_status(ThreadCommand('Update_Status', [f'Erreur lecture {name} : {e}', 'log']))
+                value = np.nan
+            data_list.append(DataFromPlugins(name=f'{name} {channel}',
+                                              data=[np.array([value])],
+                                              dim='Data0D',
+                                              labels=[f'{name} {channel} ({unit})']))
 
+        self.dte_signal.emit(DataToExport('STM-2 Group Data', data=data_list))
 
     def stop(self):
         """Stop the current grab hardware wise if necessary"""
         self.emit_status(ThreadCommand('Update_Status', ['Stopped']))
         return ''
+
 
 if __name__ == '__main__':
     main(__file__)
