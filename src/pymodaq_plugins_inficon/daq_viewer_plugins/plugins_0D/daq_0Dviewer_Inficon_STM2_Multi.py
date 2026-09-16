@@ -6,6 +6,8 @@ from pymodaq_gui.parameter import Parameter
 
 from pymodaq.control_modules.viewer_utility_classes import DAQ_Viewer_base, comon_parameters, main
 from pymodaq.utils.data import DataFromPlugins
+from pymodaq_gui.parameter.pymodaq_ptypes import GroupParameter, registerParameterType
+from pyqtgraph.parametertree.parameterTypes.basetypes import GroupParameter
 
 from pymodaq_plugins_inficon.hardware.STM2_Python_Wrapper import InficonSTM2
 
@@ -28,15 +30,26 @@ class DAQ_0DViewer_Inficon_STM2_Multi(DAQ_Viewer_base):
         The particular object that allow the communication with the hardware, in general a python wrapper around the
          hardware library.
     """
-    params = comon_parameters + [
+
+    qcm_params =  [
         {'title': 'Device serial number :', 'name': 'device_serial_number', 'type': 'list'},
-        {'title': 'Device information :', 'name': 'device_info', 'type': 'str', 'value': '', 'readonly': True},
         {'title': 'Crystal status :', 'name': 'crystal_status', 'type': 'str', 'value': '', 'readonly': True},
+    ]
+
+    params = comon_parameters + [
+        {'title': 'Number of QCM', 'name': 'qcm_number', 'type': 'int', 'value': 2},
         {'title': 'Zeroes thickness :', 'name': 'set_timer_thickness_zeroes', 'type': 'bool_push'},
         {'title': 'Film name :', 'name': 'film_name', 'type': 'str'},
         {'title': 'Film density :', 'name': 'film_density', 'type': 'float', 'max': 99.99, 'min': 0.40},
         {'title': 'Film Z-ratio :', 'name': 'film_zratio', 'type': 'float', 'max': 9.999, 'min': 0.100},
-        {'title': 'Samples number :', 'name': 'samples_number', 'type': 'int', 'max': 50, 'min': 1, 'value': 5}
+        {'title': 'Samples number :', 'name': 'samples_number', 'type': 'int', 'max': 50, 'min': 1, 'value': 5},
+        {'title': 'Activated STM-2', 'name': 'activated_stm2', 'type':'groupmock', 'children':[
+            {'title': 'QCM 1', 'name': 'qcm_1', 'type': 'bool', 'value': True,'removable': True, 'renamable': False,
+             'children': qcm_params},
+            {'title': 'QCM 2', 'name': 'qcm_2', 'type': 'bool', 'value': True,'removable': True, 'renamable': False,
+             'children': qcm_params},
+        ]},
+
     ]
 
     def link_ports_and_sn(self):
