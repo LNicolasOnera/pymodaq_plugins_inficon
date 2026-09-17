@@ -51,8 +51,8 @@ class DAQ_0DViewer_Inficon_STM2_Multi(DAQ_Viewer_base):
     Units are added/removed at runtime from the 'activated_stm2' group parameter (à la Mock
     plugin). Film settings (name/density/zratio/samples) and the zero-thickness command are
     broadcast to every currently connected unit; each unit keeps its own serial number selection
-    and crystal status readout. The chosen channel (frequency/thickness/rate) is plotted for every
-    connected unit on the same 0D graph.
+    and crystal status readout. Each checked channel (frequency/thickness/thickness_rate) opens
+    its own window, plotting every connected unit as a separate curve within it.
 
     Attributes
     -----------
@@ -61,8 +61,11 @@ class DAQ_0DViewer_Inficon_STM2_Multi(DAQ_Viewer_base):
     """
 
     params = comon_parameters + [
-        {'title': 'Canal tracé :', 'name': 'channel', 'type': 'list',
-         'limits': ['frequency', 'thickness', 'rate'], 'value': 'frequency'},
+        {'title': 'Selected channel :', 'name': 'channel', 'type': 'group', 'children': [
+            {'title': 'Frequency (Hz)', 'name': 'frequency', 'type': 'bool', 'value': True},
+            {'title': 'Thickness (Å)', 'name': 'thickness', 'type': 'bool', 'value': True},
+            {'title': 'Thickness growth rate (Å/s)', 'name': 'thickness_rate', 'type': 'bool', 'value': True},
+        ]},
         {'title': 'Actualiser les ports :', 'name': 'refresh_ports', 'type': 'bool_push'},
         {'title': 'Zeroes thickness :', 'name': 'set_timer_thickness_zeroes', 'type': 'bool_push'},
         {'title': 'Film name :', 'name': 'film_name', 'type': 'str'},
@@ -82,8 +85,12 @@ class DAQ_0DViewer_Inficon_STM2_Multi(DAQ_Viewer_base):
     _channel_getters = {
         'frequency': ('get_frequency', 'Hz'),
         'thickness': ('get_thickness', 'Å'),
-        'rate': ('get_rate', 'Å/s'),
+        'thickness_rate': ('get_rate', 'Å/s'),
     }
+
+    def _active_channels(self):
+        """Names of the currently checked channel booleans, in tree order."""
+        return [ch.name() for ch in self.settings.child('channel').children() if ch.value()]
 
     @staticmethod
     def _port_from_label(label: str) -> str:
@@ -162,7 +169,8 @@ class DAQ_0DViewer_Inficon_STM2_Multi(DAQ_Viewer_base):
         Parameters
         ----------
         param: Parameter
-            channel : canal tracé au prochain grab (frequency/thickness/rate), pas d'action ici.
+            channel : cases à cocher (frequency/thickness/thickness_rate) déterminant quels
+                canaux/quelles fenêtres sont tracés au prochain grab, pas d'action ici.
             refresh_ports : relance la détection des ports/numéros de série disponibles.
             set_timer_thickness_zeroes : remet l'épaisseur à zéro sur tous les STM-2 connectés.
             film_name / film_density / film_zratio / samples_number : diffusés à tous les STM-2
@@ -199,12 +207,15 @@ class DAQ_0DViewer_Inficon_STM2_Multi(DAQ_Viewer_base):
         self.refresh_available_ports()
         self.sync_controllers()
 
-        channel = self.settings.child('channel').value()
-        labels = [f'{name} {channel}' for name in self.controllers]
-        data_tot = [np.array([0]) for _ in self.controllers]
-        self.dte_signal_temp.emit(DataToExport('STM-2 Group Data',
-                                               data=[DataFromPlugins(name='STM-2 Group Data', data=data_tot,
-                                                                     dim='Data0D', labels=labels)]))
+        channels = self._active_channels()
+        controller_names = list(self.controllers.keys())
+        dummy_dfp = [
+            DataFromPlugins(name=channel,
+                             data=[np.array([0]) for _ in controller_names],
+                             dim='Data0D', labels=controller_names)
+            for channel in channels
+        ]
+        self.dte_signal_temp.emit(DataToExport('STM-2 Group Data', data=dummy_dfp))
 
         initialized = len(self.controllers) > 0
         info = f"{len(self.controllers)} STM-2 connecté(s) : {', '.join(self.controllers.keys())}"
@@ -216,28 +227,33 @@ class DAQ_0DViewer_Inficon_STM2_Multi(DAQ_Viewer_base):
         self._ports_in_use.clear()
 
     def grab_data(self, Naverage=1, **kwargs):
-        """Grab the chosen channel from every connected STM-2 and emit them together so they are
-        plotted as separate curves on the same 0D graph."""
-        channel = self.settings.child('channel').value()
-        getter_name, unit = self._channel_getters[channel]
+        """Grab every checked channel from every connected, activated STM-2.
 
-        data_tot = []
-        labels = []
-        for name, ctrl in self.controllers.items():
-            try:
-                value = getattr(ctrl, getter_name)()
-            except Exception as e:
-                self.emit_status(ThreadCommand('Update_Status', [f'Erreur lecture {name} : {e}', 'log']))
-                value = np.nan
-            data_tot.append(np.array([value]))
-            labels.append(f'{name} {channel} ({unit})')
+        One DataFromPlugins is built per checked channel (frequency/thickness/thickness_rate),
+        each containing one value per connected controller — so PyMoDAQ opens/updates one window
+        per channel, each showing every QCM as a separate curve.
+        """
+        channels = self._active_channels()
+        controller_names = list(self.controllers.keys())
 
-        if not data_tot:
+        if not channels or not controller_names:
             return
 
-        self.dte_signal.emit(DataToExport('STM-2 Group Data',
-                                          data=[DataFromPlugins(name='STM-2 Group Data', data=data_tot,
-                                                                dim='Data0D', labels=labels)]))
+        data_list = []
+        for channel in channels:
+            getter_name, unit = self._channel_getters[channel]
+            values = []
+            for name in controller_names:
+                try:
+                    value = getattr(self.controllers[name], getter_name)()
+                except Exception as e:
+                    self.emit_status(ThreadCommand('Update_Status', [f'Erreur lecture {name} : {e}', 'log']))
+                    value = np.nan
+                values.append(np.array([value]))
+            data_list.append(DataFromPlugins(name=channel, data=values, dim='Data0D',
+                                              labels=[f'{name} ({unit})' for name in controller_names]))
+
+        self.dte_signal.emit(DataToExport('STM-2 Group Data', data=data_list))
 
     def stop(self):
         """Stop the current grab hardware wise if necessary"""
