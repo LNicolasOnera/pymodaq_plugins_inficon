@@ -204,7 +204,6 @@ class DAQ_0DViewer_Inficon_STM2_Multi(DAQ_Viewer_base):
 
     def ini_detector(self, controller=None):
         """Detector communication initialization: connects every currently activated QCM."""
-        self.refresh_available_ports()
         self.sync_controllers()
 
         channels = self._active_channels()
