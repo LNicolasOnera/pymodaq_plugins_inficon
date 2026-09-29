@@ -48,7 +48,7 @@ registerParameterType('groupstm2', STM2ScalableGroup, override=True)
 class DAQ_0DViewer_Inficon_STM2_Multi(DAQ_Viewer_base):
     """ Instrument plugin class for a OD viewer managing a variable number of Inficon STM-2 units.
 
-    Units are added/removed at runtime from the 'activated_stm2' group parameter (à la Mock
+    Units are added/removed at runtime from the 'activated_stm2' group parameter (like in Mock
     plugin). Film settings (name/density/zratio/samples) and the zero-thickness command are
     broadcast to every currently connected unit; each unit keeps its own serial number selection
     and crystal status readout. Each checked channel (frequency/thickness/thickness_rate) opens
@@ -59,7 +59,7 @@ class DAQ_0DViewer_Inficon_STM2_Multi(DAQ_Viewer_base):
     controllers: dict[str, InficonSTM2]
         Maps a QCM group child name ('qcm_1', 'qcm_2', ...) to its open InficonSTM2 connection.
     """
-
+    N_QCM = 4 #Number of STM2 controllers
     params = comon_parameters + [
         {'title': 'Selected channel :', 'name': 'channel', 'type': 'group', 'children': [
             {'title': 'Frequency (Hz)', 'name': 'frequency', 'type': 'bool', 'value': True},
@@ -73,12 +73,9 @@ class DAQ_0DViewer_Inficon_STM2_Multi(DAQ_Viewer_base):
         {'title': 'Film Z-ratio :', 'name': 'film_zratio', 'type': 'float', 'max': 9.999, 'min': 0.100},
         {'title': 'Samples number :', 'name': 'samples_number', 'type': 'int', 'max': 50, 'min': 1, 'value': 5},
         {'title': 'Activated STM-2', 'name': 'activated_stm2', 'type': 'groupstm2', 'children': [
-            {'title': 'QCM 1', 'name': 'qcm_1', 'type': 'bool', 'value': True,
-             'removable': True, 'renamable': False,
-             'children': [{**p} for p in qcm_params]},
-            {'title': 'QCM 2', 'name': 'qcm_2', 'type': 'bool', 'value': True,
-             'removable': True, 'renamable': False,
-             'children': [{**p} for p in qcm_params]},
+            {'title': f'QCM {i}', 'name': f'qcm_{i}', 'type': 'bool', 'value': True, 'removable': True,
+             'renamable': False, 'children': [{**p} for p in qcm_params]}
+            for i in range (1, N_QCM+1)
         ]},
     ]
 
