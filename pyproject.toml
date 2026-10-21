@@ -20,12 +20,10 @@ dependencies = [
 ]
 
 authors = [
-    {name = "Name Surname", email = "myname@test.fr"},
-    #todo: list here all authors of your plugin
+    {name = "Lucas Nicolas", email = "lucas.nicolas@onera"},
 ]
 maintainers = [
-    {name = "Name Surname", email = "myname@test.fr"},
-    #todo: list here all maintainers of your plugin
+    {name = "Lucas Nicolas", email = "lucas.nicolas@onera"},
 ]
 
 # nottodo: leave everything below as is!

@@ -10,23 +10,19 @@ from pymodaq.utils.data import DataFromPlugins
 from pymodaq_plugins_inficon.hardware.STM2_Python_Wrapper import InficonSTM2
 
 class DAQ_0DViewer_Inficon_STM2(DAQ_Viewer_base):
-    """ Instrument plugin class for a OD viewer.
-
-    This object inherits all functionalities to communicate with PyMoDAQ’s DAQ_Viewer module through inheritance via
-    DAQ_Viewer_base. It makes a bridge between the DAQ_Viewer module and the Python wrapper of a particular instrument.
-
-    TODO Complete the docstring of your plugin with:
-        * The set of instruments that should be compatible with this instrument plugin.
-        * With which instrument it has actually been tested.
-        * The version of PyMoDAQ during the test.
-        * The version of the operating system.
-        * Installation instructions: what manufacturer’s drivers should be installed to make it run?
-
-    Attributes:
-    -----------
-    controller: object
-        The particular object that allow the communication with the hardware, in general a python wrapper around the
-         hardware library.
+    """
+    Developed and tested fpr STM-2 instrument.
+    Developed and tested with Python 3.12
+    Tested with PyMoDAQ 5.2 and 5.3
+    Requires installation of the following drivers:
+        SMDP protocol server
+        USB installer
+        STM-2 Application software
+    They are all available in the Download section of the Inficon STM-2 web page:
+        https://www.inficon.com/en/products/thin-film-technology/thickness-monitor-stm-2-usb-thin-film-rate
+    Another USB driver may be required for the STM-2 to be detected by the computer:
+        CP210x Windows Drivers from Silicon Labs: https://www.silabs.com/software-and-tools/usb-to-uart-bridge-vcp-drivers?tab=downloads
+    pyserial package is also required.
     """
     params = comon_parameters + [
         {'title': 'Device serial number :', 'name': 'device_serial_number', 'type': 'list'},
@@ -56,7 +52,6 @@ class DAQ_0DViewer_Inficon_STM2(DAQ_Viewer_base):
         self.link_ports_and_sn()
         self.emit_status(ThreadCommand('Update_Status', ['Detected STM-2 COM ports : ' + str(self.stm2_ports), 'log']))
 
-        # TODO declare here attributes you want/need to init with a default value
         pass
 
     def commit_settings(self, param: Parameter):
@@ -145,14 +140,14 @@ class DAQ_0DViewer_Inficon_STM2(DAQ_Viewer_base):
                                                                      data=[np.array([0, 5])],
                                                                      dim='Data0D',
                                                                      labels=['Thickness (Å)']),
-                                                     # DataFromPlugins(name='STM-2 Film mass',
-                                                     #                 data=[np.array([0, 5])],
-                                                     #                 dim='Data0D',
-                                                     #                 labels=['Film mass (µg/cm²)']),
                                                      DataFromPlugins(name='STM-2 Rate',
                                                                      data=[np.array([0, 5])],
                                                                      dim='Data0D',
                                                                      labels=['Rate (Å/s)']),
+                                                     # DataFromPlugins(name='STM-2 Film mass',
+                                                     #                 data=[np.array([0, 5])],
+                                                     #                 dim='Data0D',
+                                                     #                 labels=['Film mass (µg/cm²)']),
                                                      # DataFromPlugins(name='STM-2 Mass accumulation rate',
                                                      #                 data=[np.array([0, 5])],
                                                      #                 dim='Data0D',
@@ -186,14 +181,14 @@ class DAQ_0DViewer_Inficon_STM2(DAQ_Viewer_base):
                                                                 data=[np.array([self.controller.get_thickness()])],
                                                                 dim='Data0D',
                                                                 labels=['Thickness (Å)']),
-                                                # DataFromPlugins(name='STM-2 Film mass',
-                                                #                 data=[np.array([self.controller.get_film_mass()])],
-                                                #                 dim='Data0D',
-                                                #                 labels=['Film mass (µg/cm²)']),
                                                 DataFromPlugins(name='STM-2 Rate',
                                                                 data=[np.array([self.controller.get_rate()])],
                                                                 dim='Data0D',
                                                                 labels=['Rate (Å/s)']),
+                                                # DataFromPlugins(name='STM-2 Film mass',
+                                                #                 data=[np.array([self.controller.get_film_mass()])],
+                                                #                 dim='Data0D',
+                                                #                 labels=['Film mass (µg/cm²)']),
                                                 # DataFromPlugins(name='STM-2 Mass accumulation rate',
                                                 #                 data=[np.array(
                                                 #                     [self.controller.get_mass_accumulation_rate()])],

@@ -47,12 +47,24 @@ registerParameterType('groupstm2', STM2ScalableGroup, override=True)
 
 class DAQ_0DViewer_Inficon_STM2_Multi(DAQ_Viewer_base):
     """ Instrument plugin class for a OD viewer managing a variable number of Inficon STM-2 units.
+    Developed and tested with Python 3.12
+    Tested with PyMoDAQ 5.2 and 5.3
+    Requires installation of the following drivers:
+        SMDP protocol server
+        USB installer
+        STM-2 Application software
+    They are all available in the Download section of the Inficon STM-2 web page:
+        https://www.inficon.com/en/products/thin-film-technology/thickness-monitor-stm-2-usb-thin-film-rate
+    Another USB driver may be required for the STM-2 to be detected by the computer:
+        CP210x Windows Drivers from Silicon Labs: https://www.silabs.com/software-and-tools/usb-to-uart-bridge-vcp-drivers?tab=downloads
+    pyserial package is also required.
 
     Units are added/removed at runtime from the 'activated_stm2' group parameter (like in Mock
-    plugin). Film settings (name/density/zratio/samples) and the zero-thickness command are
+    plugin). Film settings (name/density/z ratio/samples) and the zero-thickness command are
     broadcast to every currently connected unit; each unit keeps its own serial number selection
     and crystal status readout. Each checked channel (frequency/thickness/thickness_rate) opens
-    its own window, plotting every connected unit as a separate curve within it.
+    its own window, plotting every connected unit as a separate curve within it. To add more
+    checkable channels (film mass for instance) one have to edit this code.
 
     Attributes
     -----------
@@ -166,14 +178,11 @@ class DAQ_0DViewer_Inficon_STM2_Multi(DAQ_Viewer_base):
         Parameters
         ----------
         param: Parameter
-            channel : cases à cocher (frequency/thickness/thickness_rate) déterminant quels
-                canaux/quelles fenêtres sont tracés au prochain grab, pas d'action ici.
-            refresh_ports : relance la détection des ports/numéros de série disponibles.
-            set_timer_thickness_zeroes : remet l'épaisseur à zéro sur tous les STM-2 connectés.
-            film_name / film_density / film_zratio / samples_number : diffusés à tous les STM-2
-                connectés.
-            device_serial_number (sous 'activated_stm2') ou activation d'un QCM : gérés par
-                sync_controllers().
+            channel : checkbox to chose which channel (frequency/thickness/thickness_rate) to plot during grab data.
+            refresh_ports : relaunch port/serial number detection for available units
+            set_timer_thickness_zeroes : set thickness to 0 for all connected controllers
+            film_name / film_density / film_zratio / samples_number : the same for all controllers
+            device_serial_number managed by sync_controllers() method
         """
         try:
             if param.name() == 'refresh_ports':
