@@ -78,7 +78,7 @@ class DAQ_0DViewer_Inficon_STM2_Multi(DAQ_Viewer_base):
             {'title': 'Thickness (Å)', 'name': 'thickness', 'type': 'bool', 'value': True},
             {'title': 'Thickness growth rate (Å/s)', 'name': 'thickness_rate', 'type': 'bool', 'value': True},
         ]},
-        {'title': 'Actualiser les ports :', 'name': 'refresh_ports', 'type': 'bool_push'},
+        {'title': 'Refresh COM ports :', 'name': 'refresh_ports', 'type': 'bool_push'},
         {'title': 'Zeroes thickness :', 'name': 'set_timer_thickness_zeroes', 'type': 'bool_push'},
         {'title': 'Film name :', 'name': 'film_name', 'type': 'str'},
         {'title': 'Film density :', 'name': 'film_density', 'type': 'float', 'max': 99.99, 'min': 0.40},
@@ -113,7 +113,8 @@ class DAQ_0DViewer_Inficon_STM2_Multi(DAQ_Viewer_base):
 
     def refresh_available_ports(self):
         """Scan the COM ports and update every QCM's device_serial_number choices, keeping the
-        currently selected value if it is still valid."""
+        currently selected value if it is still valid.
+        A controller needs to be connected in PyMoDAQ for this method to work."""
         self.stm2_ports = InficonSTM2().stm2_ports
         labels = []
         for port in self.stm2_ports:
